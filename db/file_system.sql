@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 22, 2025 at 11:41 AM
+-- Generation Time: Apr 23, 2025 at 04:03 AM
 -- Server version: 10.4.27-MariaDB
 -- PHP Version: 7.4.33
 
@@ -35,13 +35,6 @@ CREATE TABLE `files` (
   `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `files`
---
-
-INSERT INTO `files` (`id`, `folder_id`, `file_name`, `file_path`, `uploaded_at`) VALUES
-(5, 10, 'WEEKLY-REPORTS.docx.pdf', '../uploads/680761c584b91_WEEKLY-REPORTS.docx.pdf', '2025-04-22 09:30:45');
-
 -- --------------------------------------------------------
 
 --
@@ -51,16 +44,18 @@ INSERT INTO `files` (`id`, `folder_id`, `file_name`, `file_path`, `uploaded_at`)
 CREATE TABLE `folders` (
   `id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `folder_name` varchar(255) NOT NULL
+  `folder_name` varchar(255) NOT NULL,
+  `parent_folder_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `folders`
 --
 
-INSERT INTO `folders` (`id`, `user_id`, `folder_name`) VALUES
-(10, 1, 'MS187'),
-(11, 1, 'MS5');
+INSERT INTO `folders` (`id`, `user_id`, `folder_name`, `parent_folder_id`) VALUES
+(16, 1, 'MS187', NULL),
+(19, 1, 'MS187', 16),
+(21, 1, 'MS143', 16);
 
 -- --------------------------------------------------------
 
@@ -122,7 +117,7 @@ ALTER TABLE `files`
 -- AUTO_INCREMENT for table `folders`
 --
 ALTER TABLE `folders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `users`
