@@ -1,5 +1,8 @@
 <?php
 session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once '../db/file_system.php';
 
 if (!isset($_SESSION['user_id'])) {
@@ -10,18 +13,21 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 
-// Add Folder or Subfolder
+// Add Folder
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_folder'])) {
     $folder_name = $_POST['folder_name'];
-    $parent_folder_id = isset($_POST['parent_folder_id']) ? $_POST['parent_folder_id'] : null;
+    $current_datetime = date('Y-m-d H:i:s');
 
-    $stmt = $conn->prepare("INSERT INTO folders (user_id, folder_name, parent_folder_id) VALUES (?, ?, ?)");
-    $stmt->bind_param("isi", $user_id, $folder_name, $parent_folder_id);
-    $stmt->execute();
-    $stmt->close();
+    $stmt = $conn->prepare("INSERT INTO tbl_mainfolder (user_id, folder_name, date_created, created_by) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("isss", $user_id, $folder_name, $current_datetime, $username);
 
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit();
+    if ($stmt->execute()) {
+        $stmt->close();
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+    } else {
+        echo "Error adding folder: " . $stmt->error;
+    }
 }
 
 // Edit Folder
@@ -29,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_folder'])) {
     $folder_id = $_POST['folder_id'];
     $folder_name = $_POST['folder_name'];
 
-    $stmt = $conn->prepare("UPDATE folders SET folder_name = ? WHERE id = ? AND user_id = ?");
+    $stmt = $conn->prepare("UPDATE tbl_mainfolder SET folder_name = ? WHERE id = ? AND user_id = ?");
     $stmt->bind_param("sii", $folder_name, $folder_id, $user_id);
     $stmt->execute();
     $stmt->close();
@@ -39,18 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_folder'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_folder'])) {
     $folder_id = $_POST['folder_id'];
 
-    $stmt = $conn->prepare("DELETE FROM folders WHERE id = ? AND user_id = ?");
+    $stmt = $conn->prepare("DELETE FROM tbl_mainfolder WHERE id = ? AND user_id = ?");
     $stmt->bind_param("ii", $folder_id, $user_id);
     $stmt->execute();
     $stmt->close();
 }
 
-// Fetch Top-Level Folders
-$stmt = $conn->prepare("SELECT * FROM folders WHERE user_id = ? AND parent_folder_id IS NULL");
+// Fetch Folders
+$stmt = $conn->prepare("SELECT * FROM tbl_mainfolder WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
-$folders = $result->fetch_all(MYSQLI_ASSOC);
+$main_folders = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 ?>
 
@@ -61,13 +67,45 @@ $stmt->close();
     <title>Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .card { position: relative; cursor: pointer; transition: transform 0.2s; }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
-        .card .btn { position: absolute; top: 10px; font-size: 12px; padding: 5px 10px; border: none; background-color: transparent; color: #000; z-index: 10; }
-        .btn-warning { right: 60px; }
-        .btn-danger { right: 10px; }
-        .card-body { padding-top: 30px; }
-        .folder-link { text-decoration: none; color: inherit; display: block; }
+        .card {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .card .btn {
+            position: absolute;
+            top: 10px;
+            font-size: 12px;
+            padding: 5px 10px;
+            border: none;
+            background-color: transparent;
+            color: #000;
+            z-index: 10;
+        }
+
+        .btn-warning {
+            right: 60px;
+        }
+
+        .btn-danger {
+            right: 10px;
+        }
+
+        .card-body {
+            padding-top: 30px;
+        }
+
+        .folder-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -87,7 +125,7 @@ $stmt->close();
     <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addModal">Add New Folder</button>
 
     <div class="row">
-        <?php foreach ($folders as $folder): ?>
+        <?php foreach ($main_folders as $folder): ?>
             <div class="col-md-4 mb-4">
                 <div class="card h-100 shadow-sm">
                     <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $folder['id'] ?>">Edit</button>
@@ -99,6 +137,8 @@ $stmt->close();
                         <div class="card-body text-center">
                             <h4 class="card-title"><?= htmlspecialchars($folder['folder_name']) ?></h4>
                             <p class="card-text text-muted">Click to open</p>
+                            <p class="card-text text-muted">Created: <?= htmlspecialchars($folder['date_created']) ?></p>
+                            <p class="card-text text-muted">By: <?= htmlspecialchars($folder['created_by']) ?></p>
                         </div>
                     </a>
                 </div>

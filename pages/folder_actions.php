@@ -9,93 +9,93 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Handle edit folder
-if (isset($_POST['edit_folder']) && isset($_POST['folder_id']) && isset($_POST['folder_name'])) {
-    $folder_id = intval($_POST['folder_id']);
-    $folder_name = trim($_POST['folder_name']);
+// Add folder action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_folder') {
+    $folder_name = trim($_POST['folder_name'] ?? '');
     $parent_id = isset($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
-    
-    // Validate folder belongs to user
-    $stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
-    $stmt->bind_param("ii", $folder_id, $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        // Update folder name
-        $update_stmt = $conn->prepare("UPDATE folders SET folder_name = ? WHERE id = ? AND user_id = ?");
-        $update_stmt->bind_param("sii", $folder_name, $folder_id, $user_id);
-        
-        if ($update_stmt->execute()) {
-            $_SESSION['message'] = "Folder updated successfully!";
+
+    if (!empty($folder_name)) {
+        // Check for duplicate folder name under the same parent
+        $stmt = $conn->prepare("SELECT id FROM tbl_subfolder WHERE user_id = ? AND folder_name = ? AND parent_folder_id ".($parent_id === null ? "IS NULL" : "= ?"));
+        if ($parent_id === null) {
+            $stmt->bind_param("is", $user_id, $folder_name);
         } else {
-            $_SESSION['error'] = "Failed to update folder: " . $conn->error;
+            $stmt->bind_param("isi", $user_id, $folder_name, $parent_id);
         }
+        $stmt->execute();
+        $stmt->store_result();
         
-        $update_stmt->close();
-    } else {
-        $_SESSION['error'] = "You don't have permission to edit this folder.";
+        if ($stmt->num_rows == 0) {
+            $stmt->close();
+            
+            // Insert new folder
+            $stmt = $conn->prepare("INSERT INTO tbl_subfolder (user_id, folder_name, parent_folder_id) VALUES (?, ?, ?)");
+            $stmt->bind_param("isi", $user_id, $folder_name, $parent_id);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
-    $stmt->close();
     
-    // Redirect back to the folder page
-    if (isset($_POST['parent_id']) && !empty($_POST['parent_id'])) {
-        header("Location: folder.php?id=" . intval($_POST['parent_id']));
-    } else {
-        header("Location: dashboard.php");
-    }
+    header("Location: folder.php?id=" . $parent_id);
     exit();
 }
 
-
-// Handle delete folder
-if (isset($_POST['delete_folder']) && isset($_POST['folder_id'])) {
-    $folder_id = intval($_POST['folder_id']);
+// Edit folder action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_folder'])) {
+    $folder_id = isset($_POST['folder_id']) ? intval($_POST['folder_id']) : 0;
+    $folder_name = trim($_POST['folder_name'] ?? '');
     $parent_id = isset($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
-    
-    // Validate folder belongs to user
-    $stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
-    $stmt->bind_param("ii", $folder_id, $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        // Delete folder
-        $delete_stmt = $conn->prepare("DELETE FROM folders WHERE id = ?");
-        $delete_stmt->bind_param("i", $folder_id);
-        $delete_stmt->execute();
-        $delete_stmt->close();
+
+    if (!empty($folder_name) && $folder_id > 0) {
+        // Check if folder belongs to user
+        $stmt = $conn->prepare("SELECT id FROM tbl_subfolder WHERE id = ? AND user_id = ?");
+        $stmt->bind_param("ii", $folder_id, $user_id);
+        $stmt->execute();
+        $stmt->store_result();
+        
+        if ($stmt->num_rows > 0) {
+            $stmt->close();
+            
+            // Update folder name
+            $stmt = $conn->prepare("UPDATE tbl_subfolder SET folder_name = ? WHERE id = ? AND user_id = ?");
+            $stmt->bind_param("sii", $folder_name, $folder_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
-    $stmt->close();
     
-    // Redirect back to the folder page
-    if (isset($_POST['parent_id'])) {
-        header("Location: folder.php?id=" . $_POST['parent_id']);
-    } else {
-        header("Location: ./dashboard.php");
-    }
+    header("Location: folder.php?id=" . $parent_id);
     exit();
 }
 
-// Handle add folder
-if (isset($_POST['add_folder']) && isset($_POST['folder_name'])) {
-    $folder_name = trim($_POST['folder_name']);
-    $parent_folder_id = isset($_POST['parent_folder_id']) ? intval($_POST['parent_folder_id']) : null;
-    
-    $stmt = $conn->prepare("INSERT INTO folders (folder_name, user_id, parent_folder_id) VALUES (?, ?, ?)");
-    $stmt->bind_param("sii", $folder_name, $user_id, $parent_folder_id);
-    $stmt->execute();
-    $stmt->close();
-    
-    // Redirect back to the folder page
-    if ($parent_folder_id) {
-        header("Location: folder.php?id=" . $parent_folder_id);
-    } else {
-        header("Location: ./dashboard.php");
+// Delete folder action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_folder'])) {
+    $folder_id = isset($_POST['folder_id']) ? intval($_POST['folder_id']) : 0;
+    $parent_id = isset($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
+
+    if ($folder_id > 0) {
+        // Check if folder belongs to user
+        $stmt = $conn->prepare("SELECT id FROM tbl_subfolder WHERE id = ? AND user_id = ?");
+        $stmt->bind_param("ii", $folder_id, $user_id);
+        $stmt->execute();
+        $stmt->store_result();
+        
+        if ($stmt->num_rows > 0) {
+            $stmt->close();
+            
+            // Delete the folder
+            $stmt = $conn->prepare("DELETE FROM tbl_subfolder WHERE id = ? AND user_id = ?");
+            $stmt->bind_param("ii", $folder_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
+    
+    header("Location: folder.php?id=" . $parent_id);
     exit();
 }
 
-// If no action was taken, redirect to dashboard
-header("Location: ./dashboard.php");
+// If we get here, it's an invalid request
+header("Location: folder.php?id=" . (isset($_POST['parent_id']) ? intval($_POST['parent_id']) : null));
 exit();
+?>
